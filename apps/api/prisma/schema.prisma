@@ -1,0 +1,321 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  PROPERTY_OWNER
+  PROPERTY_MANAGER
+  CARETAKER
+  TENANT
+}
+
+enum UnitStatus {
+  OCCUPIED
+  VACANT
+  RESERVED
+  UNDER_MAINTENANCE
+}
+
+enum ChargeStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  MPESA
+  BANK
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REJECTED
+}
+
+enum MaintenanceCategory {
+  PLUMBING
+  ELECTRICAL
+  SECURITY
+  CLEANING
+  STRUCTURAL
+  OTHER
+}
+
+enum MaintenanceStatus {
+  SUBMITTED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      Role     @default(TENANT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedProperties   Property[]    @relation("PropertyOwner")
+  managedProperties Property[]   @relation("PropertyManager")
+  tenant            Tenant?
+  announcements     Announcement[]
+  auditLogs         AuditLog[]
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  name        String
+  location    String
+  description String?
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerId   String
+  owner     User    @relation("PropertyOwner", fields: [ownerId], references: [id])
+  managerId String?
+  manager   User?   @relation("PropertyManager", fields: [managerId], references: [id])
+
+  units         Unit[]
+  announcements Announcement[]
+
+  @@map("properties")
+}
+
+model Unit {
+  id            String     @id @default(cuid())
+  unitNumber    String
+  unitType      String?
+  monthlyRent   Decimal    @db.Decimal(12, 2)
+  depositAmount Decimal    @default(0) @db.Decimal(12, 2)
+  status        UnitStatus @default(VACANT)
+  floor         Int?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  tenant              Tenant?
+  leases              Lease[]
+  maintenanceRequests MaintenanceRequest[]
+  tenantInvites       TenantInvite[]
+
+  @@unique([propertyId, unitNumber])
+  @@map("units")
+}
+
+model Tenant {
+  id               String    @id @default(cuid())
+  nationalId       String?
+  emergencyContact String?
+  emergencyPhone   String?
+  moveInDate       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId String? @unique
+  unit   Unit?  @relation(fields: [unitId], references: [id])
+
+  leases              Lease[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@map("tenants")
+}
+
+model Lease {
+  id        String    @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime?
+  isActive  Boolean   @default(true)
+  rentDay   Int       @default(1) // day of month rent is due
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unitId   String
+  unit     Unit   @relation(fields: [unitId], references: [id])
+
+  rentCharges RentCharge[]
+
+  @@map("leases")
+}
+
+model RentCharge {
+  id        String       @id @default(cuid())
+  amount    Decimal      @db.Decimal(12, 2)
+  dueDate   DateTime
+  status    ChargeStatus @default(PENDING)
+  month     Int // 1-12
+  year      Int
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  leaseId String
+  lease   Lease  @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  payments Payment[]
+
+  @@unique([leaseId, month, year])
+  @@map("rent_charges")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  amount          Decimal       @db.Decimal(12, 2)
+  paymentDate     DateTime
+  referenceNumber String?
+  method          PaymentMethod @default(MPESA)
+  notes           String?
+  status          PaymentStatus @default(PENDING_CONFIRMATION)
+  confirmedAt     DateTime?
+  confirmedBy     String? // userId of confirmer
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  rentChargeId String
+  rentCharge   RentCharge @relation(fields: [rentChargeId], references: [id], onDelete: Cascade)
+
+  receipt Receipt?
+
+  @@map("payments")
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  receiptNumber String   @unique
+  generatedAt   DateTime @default(now())
+  pdfUrl        String?
+
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("receipts")
+}
+
+model MaintenanceRequest {
+  id          String              @id @default(cuid())
+  category    MaintenanceCategory
+  description String
+  photos      String[]
+  status      MaintenanceStatus   @default(SUBMITTED)
+  assignedTo  String? // name of person assigned
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unitId   String
+  unit     Unit   @relation(fields: [unitId], references: [id])
+
+  updates MaintenanceUpdate[]
+
+  @@map("maintenance_requests")
+}
+
+model MaintenanceUpdate {
+  id        String            @id @default(cuid())
+  note      String
+  status    MaintenanceStatus
+  createdAt DateTime          @default(now())
+  updatedBy String? // userId
+
+  requestId String
+  request   MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_updates")
+}
+
+model Announcement {
+  id         String   @id @default(cuid())
+  title      String
+  body       String
+  sentViaEmail     Boolean @default(false)
+  sentViaWhatsapp  Boolean @default(false)
+  createdAt  DateTime @default(now())
+
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+
+  @@map("announcements")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model TenantInvite {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  email     String
+  firstName String
+  lastName  String
+  phone     String?
+
+  // Tenant placement
+  unitId         String
+  unit           Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  leaseStartDate DateTime
+  leaseEndDate   DateTime?
+  rentDay        Int      @default(1)
+
+  // Lifecycle
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("tenant_invites")
+}
