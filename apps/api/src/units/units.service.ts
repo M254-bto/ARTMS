@@ -1,13 +1,30 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UnitStatus } from '@prisma/client';
+import { IsString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 
 export class CreateUnitDto {
+  @IsString()
+  @IsNotEmpty()
   unitNumber: string;
+
+  @IsOptional()
+  @IsString()
   unitType?: string;
+
+  @IsNumber()
   monthlyRent: number;
+
+  @IsOptional()
+  @IsNumber()
   depositAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
   floor?: number;
+
+  @IsString()
+  @IsNotEmpty()
   propertyId: string;
 }
 
@@ -20,6 +37,17 @@ export class UnitsService {
       data: { ...dto, monthlyRent: dto.monthlyRent, depositAmount: dto.depositAmount ?? 0 },
       include: { property: { select: { name: true } } },
     });
+  }
+
+  async createBulk(propertyId: string, units: Omit<CreateUnitDto, 'propertyId'>[]) {
+    const data = units.map((u) => ({
+      ...u,
+      propertyId,
+      monthlyRent: u.monthlyRent,
+      depositAmount: u.depositAmount ?? 0,
+    }));
+    await this.prisma.unit.createMany({ data, skipDuplicates: true });
+    return this.findByProperty(propertyId);
   }
 
   findByProperty(propertyId: string) {

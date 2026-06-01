@@ -3,25 +3,66 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // DTO used by POST /tenants/invite (owner fills this — no password)
 export class InviteTenantDto {
+  @IsEmail()
   email: string;
+
+  @IsString()
+  @IsNotEmpty()
   firstName: string;
+
+  @IsString()
+  @IsNotEmpty()
   lastName: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @IsString()
+  @IsNotEmpty()
   unitId: string;
+
+  @IsString()
+  @IsNotEmpty()
   leaseStartDate: string;
+
+  @IsOptional()
+  @IsString()
   leaseEndDate?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(28)
+  @Type(() => Number)
   rentDay?: number;
 }
 
 // DTO used by POST /tenants/accept-invite (tenant sets own password)
 export class AcceptInviteDto {
+  @IsString()
+  @IsNotEmpty()
   token: string;
+
+  @IsString()
+  @IsNotEmpty()
   password: string;
+
+  @IsOptional()
+  @IsString()
   nationalId?: string;
+
+  @IsOptional()
+  @IsString()
   emergencyContact?: string;
+
+  @IsOptional()
+  @IsString()
   emergencyPhone?: string;
 }
 
@@ -69,7 +110,7 @@ export class TenantsService {
       },
     });
 
-    const appUrl = this.config.get('APP_URL') || 'http://localhost:3001';
+    const appUrl = this.config.get('FRONTEND_URL') || 'http://localhost:3000';
     const link = `${appUrl}/register?token=${invite.token}`;
 
     await this.notifications.sendEmail(
@@ -102,7 +143,7 @@ export class TenantsService {
       );
     }
 
-    return { message: 'Invite sent successfully', inviteId: invite.id };
+    return { message: 'Invite sent successfully', inviteId: invite.id, token: invite.token, link };
   }
 
   // ── TENANT: accept invite & create account ─────────────────────────────────
@@ -222,7 +263,22 @@ export class TenantsService {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
         unit: { include: { property: true } },
         leases: { where: { isActive: true }, include: { rentCharges: { include: { payments: true } } } },
+        maintenanceRequests: { orderBy: { createdAt: 'desc' }, include: { updates: true } },
       },
+    });
+  }
+
+  findInvites(propertyId?: string) {
+    return this.prisma.tenantInvite.findMany({
+      where: {
+        used: false,
+        expiresAt: { gt: new Date() },
+        ...(propertyId ? { unit: { propertyId } } : {}),
+      },
+      include: {
+        unit: { include: { property: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

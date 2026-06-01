@@ -10,7 +10,7 @@ import { Role } from '@prisma/client';
 export class UsersController {
   constructor(private usersService: UsersService) {}
 
-  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_MANAGER, Role.PROPERTY_OWNER)
   @Get()
   findAll(@Query('role') role?: Role) {
     return this.usersService.findAll(role);

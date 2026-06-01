@@ -1,12 +1,27 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MaintenanceCategory, MaintenanceStatus } from '@prisma/client';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray } from 'class-validator';
 
 export class CreateMaintenanceDto {
+  @IsString()
+  @IsNotEmpty()
   tenantId: string;
+
+  @IsString()
+  @IsNotEmpty()
   unitId: string;
+
+  @IsEnum(MaintenanceCategory)
   category: MaintenanceCategory;
+
+  @IsString()
+  @IsNotEmpty()
   description: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   photos?: string[];
 }
 

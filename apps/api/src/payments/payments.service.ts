@@ -1,13 +1,29 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod } from '@prisma/client';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsEnum } from 'class-validator';
 
 export class CreatePaymentDto {
+  @IsString()
+  @IsNotEmpty()
   rentChargeId: string;
+
+  @IsNumber()
   amount: number;
+
+  @IsString()
+  @IsNotEmpty()
   paymentDate: string;
+
+  @IsOptional()
+  @IsString()
   referenceNumber?: string;
+
+  @IsEnum(PaymentMethod)
   method: PaymentMethod;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 

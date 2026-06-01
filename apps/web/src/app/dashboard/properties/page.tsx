@@ -15,23 +15,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AddPropertyDialog } from "@/components/properties/add-property-dialog";
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    async function fetchProperties() {
-      try {
-        const { data } = await api.get("/properties");
-        setProperties(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
+  async function fetchProperties() {
+    try {
+      setIsLoading(true);
+      const { data } = await api.get("/properties");
+      setProperties(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchProperties();
   }, []);
 
@@ -48,10 +51,7 @@ export default function PropertiesPage() {
           <h1 className="text-3xl font-heading font-bold text-white tracking-tight">Properties</h1>
           <p className="text-white/50 mt-1">Manage your apartment buildings and units.</p>
         </div>
-        <Button className="bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 gap-2">
-          <Plus className="w-4 h-4" />
-          Add Property
-        </Button>
+        <AddPropertyDialog onSuccess={fetchProperties} />
       </div>
 
       {/* Toolbar */}

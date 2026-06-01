@@ -12,6 +12,14 @@ export class UnitsController {
   @Post()
   create(@Body() dto: CreateUnitDto) { return this.service.create(dto); }
 
+  @Post('bulk')
+  createBulk(
+    @Body('propertyId') propertyId: string,
+    @Body('units') units: Omit<CreateUnitDto, 'propertyId'>[],
+  ) {
+    return this.service.createBulk(propertyId, units);
+  }
+
   @Get('property/:propertyId')
   findByProperty(@Param('propertyId') id: string) { return this.service.findByProperty(id); }
 

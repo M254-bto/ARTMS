@@ -30,6 +30,9 @@ export class TenantsController {
   @Get()
   findAll(@Query('propertyId') propertyId?: string) { return this.service.findAll(propertyId); }
 
+  @Get('invites')
+  findInvites(@Query('propertyId') propertyId?: string) { return this.service.findInvites(propertyId); }
+
   @Get('me')
   getMyProfile(@CurrentUser('id') userId: string) { return this.service.findByUserId(userId); }
 

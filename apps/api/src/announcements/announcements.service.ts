@@ -1,11 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateAnnouncementDto {
+  @IsString()
+  @IsNotEmpty()
   propertyId: string;
+
+  @IsString()
+  @IsNotEmpty()
   title: string;
+
+  @IsString()
+  @IsNotEmpty()
   body: string;
+
+  @IsOptional()
+  @IsBoolean()
   sendViaEmail?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   sendViaWhatsapp?: boolean;
 }
 

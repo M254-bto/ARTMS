@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
@@ -22,10 +22,12 @@ import { Label } from "@/components/ui/label";
 export function AddTenantDialog() {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [isLoadingUnits, setIsLoadingUnits] = useState(false);
+
   const [properties, setProperties] = useState<any[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
-  
+  const [vacantUnits, setVacantUnits] = useState<any[]>([]);
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -34,7 +36,11 @@ export function AddTenantDialog() {
   const [leaseStartDate, setLeaseStartDate] = useState("");
   const [rentDay, setRentDay] = useState("1");
 
-  // Fetch properties when dialog opens
+  // Success view state
+  const [successData, setSuccessData] = useState<{ link: string; token: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Fetch properties list once when dialog opens
   useEffect(() => {
     if (open && properties.length === 0) {
       api.get("/properties")
@@ -46,8 +52,40 @@ export function AddTenantDialog() {
     }
   }, [open, properties.length]);
 
-  const selectedProperty = properties.find(p => p.id === selectedPropertyId);
-  const vacantUnits = selectedProperty?.units?.filter((u: any) => u.status === "VACANT") || [];
+  // Fetch vacant units whenever a property is selected
+  useEffect(() => {
+    if (!selectedPropertyId) {
+      setVacantUnits([]);
+      return;
+    }
+    setIsLoadingUnits(true);
+    setUnitId("");
+    api.get(`/units/vacancies?propertyId=${selectedPropertyId}`)
+      .then((res) => setVacantUnits(res.data))
+      .catch((err) => {
+        console.error(err);
+        toast.error("Failed to load vacant units");
+        setVacantUnits([]);
+      })
+      .finally(() => setIsLoadingUnits(false));
+  }, [selectedPropertyId]);
+
+  function handleClose(o: boolean) {
+    setOpen(o);
+    if (!o) {
+      setSelectedPropertyId("");
+      setVacantUnits([]);
+      setUnitId("");
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+      setLeaseStartDate("");
+      setRentDay("1");
+      setSuccessData(null);
+      setCopied(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +94,7 @@ export function AddTenantDialog() {
 
     try {
       setIsLoading(true);
-      await api.post("/tenants/invite", {
+      const res = await api.post("/tenants/invite", {
         firstName,
         lastName,
         email,
@@ -65,11 +103,14 @@ export function AddTenantDialog() {
         leaseStartDate,
         rentDay: parseInt(rentDay, 10) || 1,
       });
-      
+
       toast.success("Tenant invited successfully!");
-      setOpen(false);
-      // Optional: force a refresh of the page or list
-      window.location.reload();
+      if (res.data?.link) {
+        setSuccessData({ link: res.data.link, token: res.data.token });
+      } else {
+        handleClose(false);
+        window.location.reload();
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to invite tenant");
     } finally {
@@ -77,8 +118,16 @@ export function AddTenantDialog() {
     }
   }
 
+  const handleCopyLink = () => {
+    if (!successData) return;
+    navigator.clipboard.writeText(successData.link);
+    setCopied(true);
+    toast.success("Invite link copied!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger render={
         <Button variant="outline" className="gap-2 text-white hover:bg-white/5 border-white/10">
           <Plus className="w-4 h-4" /> Add Tenant
@@ -86,130 +135,202 @@ export function AddTenantDialog() {
       } />
       <DialogContent className="sm:max-w-[500px] bg-zinc-950 border-white/10 text-white p-6">
         <DialogHeader>
-          <DialogTitle className="text-xl font-heading">Invite New Tenant</DialogTitle>
+          <DialogTitle className="text-xl font-heading">
+            {successData ? "Invitation Created" : "Invite New Tenant"}
+          </DialogTitle>
           <DialogDescription className="text-white/50">
-            They will receive an email and WhatsApp message with a secure link to set up their account.
+            {successData 
+              ? "Share this link directly with the tenant to set up their account." 
+              : "They will receive an email with a secure link to set up their account."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid grid-cols-2 gap-4">
+        {successData ? (
+          <div className="space-y-6 mt-4 py-2">
+            <div className="p-4 bg-white/[0.02] border border-white/5 rounded-lg space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Tenant Name</span>
+                <span className="font-medium text-white">{firstName} {lastName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Email</span>
+                <span className="font-medium text-white">{email}</span>
+              </div>
+              {phone && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Phone</span>
+                  <span className="font-medium text-white">{phone}</span>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
-              <Label className="text-white/70">Property</Label>
-              <select
-                className="w-full bg-black/50 border border-white/10 text-white h-9 px-3 rounded-md text-sm outline-none focus:border-primary/50"
-                value={selectedPropertyId}
-                onChange={(e) => {
-                  setSelectedPropertyId(e.target.value);
-                  setUnitId("");
+              <Label className="text-white/70">Secure Registration Link</Label>
+              <div className="flex items-center gap-2 bg-black/50 border border-white/10 rounded-md p-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={successData.link}
+                  className="w-full bg-transparent text-white text-xs outline-none select-all"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 px-3 flex-shrink-0 gap-1.5"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-2">
+              <Button
+                onClick={() => {
+                  handleClose(false);
+                  window.location.reload();
                 }}
-                required
+                className="w-full bg-white text-zinc-950 hover:bg-zinc-200"
               >
-                <option value="">Select Property...</option>
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                Done
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label className="text-white/70">Unit (Vacant Only)</Label>
-              <select
-                className="w-full bg-black/50 border border-white/10 text-white h-9 px-3 rounded-md text-sm outline-none focus:border-primary/50"
-                value={unitId}
-                onChange={(e) => setUnitId(e.target.value)}
-                required
-                disabled={!selectedPropertyId}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            {/* Property + Unit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-white/70">Property</Label>
+                <select
+                  className="w-full bg-black/50 border border-white/10 text-white h-9 px-3 rounded-md text-sm outline-none focus:border-primary/50"
+                  value={selectedPropertyId}
+                  onChange={(e) => setSelectedPropertyId(e.target.value)}
+                  required
+                >
+                  <option value="">Select Property...</option>
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">
+                  Vacant Unit
+                  {isLoadingUnits && <span className="ml-2 text-white/30 text-xs animate-pulse">Loading…</span>}
+                </Label>
+                <select
+                  className="w-full bg-black/50 border border-white/10 text-white h-9 px-3 rounded-md text-sm outline-none focus:border-primary/50 disabled:opacity-40"
+                  value={unitId}
+                  onChange={(e) => setUnitId(e.target.value)}
+                  required
+                  disabled={!selectedPropertyId || isLoadingUnits}
+                >
+                  <option value="">
+                    {!selectedPropertyId
+                      ? "Select a property first"
+                      : isLoadingUnits
+                      ? "Loading units..."
+                      : vacantUnits.length === 0
+                      ? "No vacant units"
+                      : "Select Unit..."}
+                  </option>
+                  {vacantUnits.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      Unit {u.unitNumber} — {u.unitType ?? "Unit"} (KES {Number(u.monthlyRent).toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-white/70">First Name</Label>
+                <Input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Last Name</Label>
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-white/70">Email Address</Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Phone Number</Label>
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  placeholder="+254..."
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Lease */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-white/70">Lease Start Date</Label>
+                <Input
+                  type="date"
+                  value={leaseStartDate}
+                  onChange={(e) => setLeaseStartDate(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/70">Rent Due Day (1–28)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={rentDay}
+                  onChange={(e) => setRentDay(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white h-9"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="mt-6 pt-4 border-t border-white/10 gap-2 sm:gap-0">
+              <DialogClose render={<Button variant="ghost" className="text-white/70 hover:text-white">Cancel</Button>} />
+              <Button
+                type="submit"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={isLoading || !unitId}
               >
-                <option value="">Select Unit...</option>
-                {vacantUnits.map((u: any) => (
-                  <option key={u.id} value={u.id}>Unit {u.unitNumber} (KES {Number(u.monthlyRent).toLocaleString()})</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-white/70">First Name</Label>
-              <Input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/70">Last Name</Label>
-              <Input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-white/70">Email Address</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/70">Phone Number</Label>
-              <Input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                placeholder="+254..."
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-white/70">Lease Start Date</Label>
-              <Input
-                type="date"
-                value={leaseStartDate}
-                onChange={(e) => setLeaseStartDate(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/70">Rent Due Day (1-28)</Label>
-              <Input
-                type="number"
-                min="1"
-                max="28"
-                value={rentDay}
-                onChange={(e) => setRentDay(e.target.value)}
-                className="bg-black/50 border-white/10 text-white h-9"
-                required
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="mt-6 pt-4 border-t border-white/10 gap-2 sm:gap-0">
-            <DialogClose render={<Button variant="ghost" className="text-white/70 hover:text-white">Cancel</Button>} />
-            <Button
-              type="submit"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={isLoading || !unitId}
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Send Invite
-            </Button>
-          </DialogFooter>
-        </form>
+                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Send Invite
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

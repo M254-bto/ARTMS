@@ -59,10 +59,10 @@ export default function OwnerDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard title="Total Collections" value={`KES ${summary?.collectedThisMonth?.toLocaleString() || 0}`} subtitle={`Expected: KES ${summary?.expectedThisMonth?.toLocaleString() || 0}`} icon={Wallet} trend={+5.2} />
-        <KPICard title="Occupancy Rate" value={`${summary?.occupancyRate || 0}%`} subtitle={`${summary?.occupiedUnits || 0} of ${summary?.totalUnits || 0} units occupied`} icon={Building2} trend={+2.1} />
-        <KPICard title="Active Tenants" value={summary?.totalTenants || 0} subtitle="Across all properties" icon={Users} />
-        <KPICard title="Open Maintenance" value={summary?.openMaintenance || 0} subtitle={summary?.openMaintenance > 0 ? "Requires attention" : "All clear"} icon={Wrench} trend={summary?.openMaintenance > 0 ? -1.5 : 0} alert={summary?.openMaintenance > 5} />
+        <KPICard title="Total Collections" value={`KES ${summary?.collectedThisMonth?.toLocaleString() || 0}`} subtitle={`Expected: KES ${summary?.expectedThisMonth?.toLocaleString() || 0}`} icon={Wallet} trend={summary?.collectionsTrend || 0} />
+        <KPICard title="Occupancy Rate" value={`${summary?.occupancyRate || 0}%`} subtitle={`${summary?.occupiedUnits || 0} of ${summary?.totalUnits || 0} units occupied`} icon={Building2} trend={summary?.occupancyTrend || 0} />
+        <KPICard title="Active Tenants" value={summary?.totalTenants || 0} subtitle="Across all properties" icon={Users} trend={summary?.tenantsTrend || 0} />
+        <KPICard title="Open Maintenance" value={summary?.openMaintenance || 0} subtitle={summary?.openMaintenance > 0 ? "Requires attention" : "All clear"} icon={Wrench} trend={summary?.maintenanceTrend || 0} alert={summary?.openMaintenance > 5} />
       </div>
 
       {/* Charts */}
