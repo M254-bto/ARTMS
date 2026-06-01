@@ -19,8 +19,15 @@ export class PaymentsController {
   }
 
   /** Owner/admin creates a payment tied to a known charge */
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER, Role.PROPERTY_MANAGER)
   @Post()
-  create(@Body() dto: CreatePaymentDto) { return this.service.create(dto); }
+  create(
+    @Body() dto: CreatePaymentDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.service.create(dto, userId, role);
+  }
 
   /** Tenant views their own payments, paginated */
   @Roles(Role.TENANT)
@@ -33,24 +40,29 @@ export class PaymentsController {
     return this.service.findMine(userId, page, limit);
   }
 
-  /** Owner lists all payments, paginated */
+  /** Owner lists payments scoped to their properties, paginated */
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER, Role.PROPERTY_MANAGER)
   @Get()
   findAll(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Query('propertyId') propertyId?: string,
     @Query('status') status?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   ) {
-    return this.service.findAll(propertyId, status, page, limit);
+    return this.service.findAll(userId, role, propertyId, status, page, limit);
   }
 
   @Roles(Role.SUPER_ADMIN, Role.PROPERTY_MANAGER, Role.PROPERTY_OWNER)
   @Patch(':id/confirm')
-  confirm(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.service.confirm(id, userId);
+  confirm(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('role') role: string) {
+    return this.service.confirm(id, userId, role);
   }
 
   @Roles(Role.SUPER_ADMIN, Role.PROPERTY_MANAGER, Role.PROPERTY_OWNER)
   @Patch(':id/reject')
-  reject(@Param('id') id: string) { return this.service.reject(id); }
+  reject(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('role') role: string) {
+    return this.service.reject(id, userId, role);
+  }
 }

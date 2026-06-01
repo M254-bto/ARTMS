@@ -151,34 +151,38 @@ export class DashboardService {
 
   async getMonthlyTrend(userId: string, role: string, months = 6) {
     const propertyFilter = this.buildPropertyFilter(userId, role);
-    const result = [];
 
-    for (let i = months - 1; i >= 0; i--) {
+    const monthsData = Array.from({ length: months }, (_, i) => {
       const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const month = date.getMonth() + 1;
-      const year = date.getFullYear();
+      date.setMonth(date.getMonth() - (months - 1 - i));
+      return {
+        month: date.getMonth() + 1,
+        year: date.getFullYear(),
+        label: date.toLocaleString('default', { month: 'short' }),
+      };
+    });
 
-      const [charges, payments] = await Promise.all([
-        this.prisma.rentCharge.aggregate({
-          _sum: { amount: true },
-          where: { month, year, lease: { unit: { property: propertyFilter } } },
-        }),
-        this.prisma.payment.aggregate({
-          _sum: { amount: true },
-          where: { status: 'CONFIRMED', rentCharge: { month, year, lease: { unit: { property: propertyFilter } } } },
-        }),
-      ]);
+    const results = await Promise.all(
+      monthsData.map(({ month, year, label }) =>
+        Promise.all([
+          this.prisma.rentCharge.aggregate({
+            _sum: { amount: true },
+            where: { month, year, lease: { unit: { property: propertyFilter } } },
+          }),
+          this.prisma.payment.aggregate({
+            _sum: { amount: true },
+            where: { status: 'CONFIRMED', rentCharge: { month, year, lease: { unit: { property: propertyFilter } } } },
+          }),
+        ]).then(([charges, payments]) => ({
+          month: label,
+          year,
+          expected: Number(charges._sum.amount ?? 0),
+          collected: Number(payments._sum.amount ?? 0),
+        })),
+      ),
+    );
 
-      result.push({
-        month: date.toLocaleString('default', { month: 'short' }),
-        year,
-        expected: Number(charges._sum.amount ?? 0),
-        collected: Number(payments._sum.amount ?? 0),
-      });
-    }
-
-    return result;
+    return results;
   }
 
   async getPendingPayments(userId: string, role: string) {

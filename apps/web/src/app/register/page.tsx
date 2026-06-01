@@ -290,6 +290,12 @@ function RegisterInner() {
                       </span>
                     ) : "Activate My Account"}
                   </Button>
+                  <p className="text-xs text-white/30 text-center leading-relaxed pt-1">
+                    By using the KeyNest platform, you acknowledge and agree to these{" "}
+                    <Link href="/terms" target="_blank" className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors">
+                      terms and conditions
+                    </Link>.
+                  </p>
                 </form>
               </Form>
             </CardContent>
@@ -399,7 +405,13 @@ function RegisterInner() {
               </form>
             </Form>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-white/5 pt-6 mt-2">
+          <CardFooter className="flex flex-col items-center gap-3 border-t border-white/5 pt-6 mt-2">
+            <p className="text-xs text-white/30 text-center leading-relaxed">
+              By using the KeyNest platform, you acknowledge and agree to these{" "}
+              <Link href="/terms" target="_blank" className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors">
+                terms and conditions
+              </Link>.
+            </p>
             <p className="text-sm text-white/50">
               Already have an account?{" "}
               <Link href="/login" className="text-primary hover:text-primary/80 transition-colors font-medium">

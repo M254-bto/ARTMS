@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod } from '@prisma/client';
 import {
@@ -83,7 +83,7 @@ const PAYMENT_INCLUDE = {
       lease: {
         include: {
           tenant: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } },
-          unit: { include: { property: { select: { name: true } } } },
+          unit: { include: { property: { select: { id: true, name: true, ownerId: true, managerId: true } } } },
         },
       },
     },
@@ -94,6 +94,44 @@ const PAYMENT_INCLUDE = {
 @Injectable()
 export class PaymentsService {
   constructor(private prisma: PrismaService) {}
+
+  // ── Helper: build property ownership filter ────────────────────────────────
+
+  private buildPropertyFilter(userId: string, role: string) {
+    if (role === 'SUPER_ADMIN') return {};
+    if (role === 'PROPERTY_OWNER') return { ownerId: userId };
+    if (role === 'PROPERTY_MANAGER') return { managerId: userId };
+    return {};
+  }
+
+  // ── Helper: verify payment belongs to caller's properties ──────────────────
+
+  private async verifyPaymentOwnership(paymentId: string, userId: string, role: string) {
+    if (role === 'SUPER_ADMIN') return;
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: {
+        rentCharge: {
+          select: {
+            lease: {
+              select: {
+                unit: {
+                  select: { property: { select: { ownerId: true, managerId: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    const prop = payment.rentCharge.lease.unit.property;
+    if (prop.ownerId !== userId && prop.managerId !== userId) {
+      throw new ForbiddenException('You do not have access to this payment');
+    }
+  }
 
   // ── Tenant: record a new payment ──────────────────────────────────────────
 
@@ -130,44 +168,21 @@ export class PaymentsService {
       });
       rentChargeId = charge.id;
     } else {
-      // OTHER: create an ad-hoc charge (month=0 not real; use current date)
-      // We don't use upsert here — each OTHER payment gets its own charge row
-      // Use timestamp-encoded fake month to avoid unique constraint collision
+      // OTHER: create an ad-hoc charge
       const now = new Date();
-      const month = now.getMonth() + 1;
-      const year = now.getFullYear();
-      // Attempt to always create a distinct row; since OTHER charges may repeat
-      // in the same month/year we append a micro-offset year trick isn't perfect —
-      // instead store month/year and fall back to creating if conflict
-      try {
-        const charge = await this.prisma.rentCharge.create({
-          data: {
-            leaseId: lease.id,
-            amount: dto.amount,
-            dueDate: now,
-            month,
-            year: year + 10000 + Date.now() % 10000, // unique surrogate year for OTHER
-            status: 'PENDING',
-            notes: dto.notes ?? 'Other payment',
-          },
-        });
-        rentChargeId = charge.id;
-      } catch {
-        // Fallback create with a different surrogate
-        const charge = await this.prisma.rentCharge.create({
-          data: {
-            leaseId: lease.id,
-            amount: dto.amount,
-            dueDate: now,
-            month: 13,
-            year: Date.now(),
-            status: 'PENDING',
-            notes: dto.notes ?? 'Other payment',
-          },
-        });
-        rentChargeId = charge.id;
-      }
-    } // end else (OTHER)
+      const charge = await this.prisma.rentCharge.create({
+        data: {
+          leaseId: lease.id,
+          amount: dto.amount,
+          dueDate: now,
+          month: 0,
+          year: now.getFullYear(),
+          status: 'PENDING',
+          notes: dto.notes ?? 'Other payment',
+        },
+      });
+      rentChargeId = charge.id;
+    }
 
     return this.prisma.payment.create({
       data: {
@@ -179,15 +194,29 @@ export class PaymentsService {
         notes: dto.notes,
         status: 'PENDING_CONFIRMATION',
       },
-      include: PAYMENT_INCLUDE,
+      include: {
+        rentCharge: { select: { month: true, year: true, notes: true, dueDate: true } },
+        receipt: true,
+      },
     });
   }
 
   // ── Owner: classic create (tied to a known rent charge) ──────────────────
 
-  async create(dto: CreatePaymentDto) {
-    const charge = await this.prisma.rentCharge.findUnique({ where: { id: dto.rentChargeId } });
+  async create(dto: CreatePaymentDto, userId: string, role: string) {
+    const charge = await this.prisma.rentCharge.findUnique({
+      where: { id: dto.rentChargeId },
+      include: { lease: { include: { unit: { include: { property: { select: { ownerId: true, managerId: true } } } } } } },
+    });
     if (!charge) throw new NotFoundException('Rent charge not found');
+
+    // Verify ownership
+    if (role !== 'SUPER_ADMIN') {
+      const prop = charge.lease.unit.property;
+      if (prop.ownerId !== userId && prop.managerId !== userId) {
+        throw new ForbiddenException('You do not have access to this rent charge');
+      }
+    }
 
     return this.prisma.payment.create({
       data: {
@@ -206,36 +235,49 @@ export class PaymentsService {
   // ── Tenant: get own payments paginated ──────────────────────────────────
 
   async findMine(tenantUserId: string, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
+    const take = Math.min(limit, 50); // cap at 50
+    const skip = (page - 1) * take;
     const tenant = await this.prisma.tenant.findUnique({ where: { userId: tenantUserId } });
     if (!tenant) throw new NotFoundException('Tenant profile not found');
 
+    const where = { rentCharge: { lease: { tenantId: tenant.id } } };
+
     const [payments, total] = await Promise.all([
       this.prisma.payment.findMany({
-        where: { rentCharge: { lease: { tenantId: tenant.id } } },
+        where,
         include: {
           rentCharge: { select: { month: true, year: true, notes: true, dueDate: true } },
           receipt: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
       }),
-      this.prisma.payment.count({
-        where: { rentCharge: { lease: { tenantId: tenant.id } } },
-      }),
+      this.prisma.payment.count({ where }),
     ]);
 
-    return { payments, total, page, totalPages: Math.ceil(total / limit) };
+    return { payments, total, page, totalPages: Math.ceil(total / take) };
   }
 
-  // ── Owner: list all payments with pagination ─────────────────────────────
+  // ── Owner: list payments scoped to their properties, paginated ──────────
 
-  async findAll(propertyId?: string, status?: string, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
+  async findAll(userId: string, role: string, propertyId?: string, status?: string, page = 1, limit = 10) {
+    const take = Math.min(limit, 50); // cap at 50
+    const skip = (page - 1) * take;
+    const propertyFilter = this.buildPropertyFilter(userId, role);
+
     const where = {
       ...(status ? { status: status as any } : {}),
-      ...(propertyId ? { rentCharge: { lease: { unit: { propertyId } } } } : {}),
+      rentCharge: {
+        lease: {
+          unit: {
+            property: {
+              ...propertyFilter,
+              ...(propertyId ? { id: propertyId } : {}),
+            },
+          },
+        },
+      },
     };
 
     const [payments, total] = await Promise.all([
@@ -244,17 +286,19 @@ export class PaymentsService {
         include: PAYMENT_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
       }),
       this.prisma.payment.count({ where }),
     ]);
 
-    return { payments, total, page, totalPages: Math.ceil(total / limit) };
+    return { payments, total, page, totalPages: Math.ceil(total / take) };
   }
 
   // ── Confirm ─────────────────────────────────────────────────────────────
 
-  async confirm(id: string, confirmingUserId: string) {
+  async confirm(id: string, confirmingUserId: string, role: string) {
+    await this.verifyPaymentOwnership(id, confirmingUserId, role);
+
     const payment = await this.prisma.payment.findUnique({
       where: { id },
       include: { rentCharge: true },
@@ -293,7 +337,8 @@ export class PaymentsService {
     });
   }
 
-  async reject(id: string) {
+  async reject(id: string, userId: string, role: string) {
+    await this.verifyPaymentOwnership(id, userId, role);
     return this.prisma.payment.update({ where: { id }, data: { status: 'REJECTED' } });
   }
 }

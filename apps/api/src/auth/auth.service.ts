@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
@@ -29,7 +30,7 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone,
-        role: dto.role || 'TENANT',
+        role: 'PROPERTY_OWNER',
       },
       select: { id: true, email: true, firstName: true, lastName: true, role: true },
     });
@@ -46,8 +47,21 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
-    const { password: _, ...safeUser } = user;
-    return { user: safeUser, ...tokens };
+
+    // Return user without password hash
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+      },
+      ...tokens,
+    };
   }
 
   async refresh(token: string) {
@@ -75,7 +89,7 @@ export class AuthService {
       select: {
         id: true, email: true, firstName: true, lastName: true,
         phone: true, role: true, isActive: true, createdAt: true,
-        tenant: { include: { unit: { include: { property: true } } } },
+        tenant: { include: { unit: { include: { property: { select: { id: true, name: true, location: true } } } } } },
       },
     });
   }
@@ -101,5 +115,17 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken };
+  }
+
+  // ── Cron: prune expired refresh tokens daily ────────────────────────────────
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async pruneExpiredTokens() {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    if (result.count > 0) {
+      console.log(`Pruned ${result.count} expired refresh tokens`);
+    }
   }
 }

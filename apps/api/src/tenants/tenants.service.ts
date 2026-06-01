@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // DTO used by POST /tenants/invite (owner fills this — no password)
@@ -50,7 +50,7 @@ export class AcceptInviteDto {
   token: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MinLength(8)
   password: string;
 
   @IsOptional()
@@ -74,14 +74,32 @@ export class TenantsService {
     private config: ConfigService,
   ) {}
 
+  // ── Helper: build property ownership filter ───────────────────────────────
+
+  private buildPropertyFilter(userId: string, role: string) {
+    if (role === 'SUPER_ADMIN') return {};
+    if (role === 'PROPERTY_OWNER') return { ownerId: userId };
+    if (role === 'PROPERTY_MANAGER') return { managerId: userId };
+    return {};
+  }
+
   // ── OWNER: send invite ─────────────────────────────────────────────────────
 
-  async invite(dto: InviteTenantDto) {
+  async invite(dto: InviteTenantDto, userId: string, role: string) {
     const unit = await this.prisma.unit.findUnique({
       where: { id: dto.unitId },
       include: { property: true },
     });
     if (!unit) throw new NotFoundException('Unit not found');
+
+    // Verify caller owns this property
+    if (role !== 'SUPER_ADMIN') {
+      const prop = unit.property;
+      if (prop.ownerId !== userId && prop.managerId !== userId) {
+        throw new ForbiddenException('You do not have access to this property');
+      }
+    }
+
     if (unit.status === 'OCCUPIED') throw new ConflictException('Unit is already occupied');
 
     // No duplicate pending invite for same unit
@@ -115,11 +133,11 @@ export class TenantsService {
 
     await this.notifications.sendEmail(
       dto.email,
-      `You've been added to ${unit.property.name} — Set up your ARTMS account`,
+      `You've been added to ${unit.property.name} — Set up your KeyNest account`,
       `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
           <h2 style="color:#fff;background:#09090b;padding:24px;border-radius:8px 8px 0 0;margin:0">
-            Welcome to ARTMS
+            Welcome to KeyNest
           </h2>
           <div style="background:#18181b;padding:24px;border-radius:0 0 8px 8px;color:#a1a1aa">
             <p>Hi <strong style="color:#fff">${dto.firstName}</strong>,</p>
@@ -139,11 +157,12 @@ export class TenantsService {
     if (dto.phone) {
       await this.notifications.sendWhatsApp(
         dto.phone,
-        `Hi ${dto.firstName}! You've been added as a tenant at ${unit.property.name}, Unit ${unit.unitNumber}. Set up your ARTMS account here: ${link} (expires in 7 days)`,
+        `Hi ${dto.firstName}! You've been added as a tenant at ${unit.property.name}, Unit ${unit.unitNumber}. Set up your KeyNest account here: ${link} (expires in 7 days)`,
       );
     }
 
-    return { message: 'Invite sent successfully', inviteId: invite.id, token: invite.token, link };
+    // Don't return the raw token — it's already embedded in the link
+    return { message: 'Invite sent successfully', inviteId: invite.id, link };
   }
 
   // ── TENANT: accept invite & create account ─────────────────────────────────
@@ -228,31 +247,60 @@ export class TenantsService {
     };
   }
 
-  // ── READ helpers ────────────────────────────────────────────────────────────
+  // ── READ helpers (scoped to caller's properties) ────────────────────────────
 
-  findAll(propertyId?: string) {
-    return this.prisma.tenant.findMany({
-      where: propertyId ? { unit: { propertyId } } : {},
-      include: {
-        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
-        unit: { include: { property: { select: { id: true, name: true } } } },
-        leases: { where: { isActive: true }, take: 1 },
+  async findAll(userId: string, role: string, propertyId?: string, page = 1, limit = 20) {
+    const take = Math.min(limit, 50);
+    const skip = (page - 1) * take;
+    const propertyFilter = this.buildPropertyFilter(userId, role);
+
+    const where = {
+      unit: {
+        property: {
+          ...propertyFilter,
+          ...(propertyId ? { id: propertyId } : {}),
+        },
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
+
+    const [tenants, total] = await Promise.all([
+      this.prisma.tenant.findMany({
+        where,
+        include: {
+          user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+          unit: { include: { property: { select: { id: true, name: true } } } },
+          leases: { where: { isActive: true }, take: 1 },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.tenant.count({ where }),
+    ]);
+
+    return { tenants, total, page, totalPages: Math.ceil(total / take) };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId: string, role: string) {
     const t = await this.prisma.tenant.findUnique({
       where: { id },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, createdAt: true } },
-        unit: { include: { property: true } },
+        unit: { include: { property: { select: { id: true, name: true, ownerId: true, managerId: true } } } },
         leases: { include: { rentCharges: { include: { payments: true }, orderBy: { year: 'desc' } } } },
         maintenanceRequests: { orderBy: { createdAt: 'desc' }, include: { updates: true } },
       },
     });
     if (!t) throw new NotFoundException('Tenant not found');
+
+    // Ownership check
+    if (role !== 'SUPER_ADMIN') {
+      const prop = t.unit.property;
+      if (prop.ownerId !== userId && prop.managerId !== userId) {
+        throw new ForbiddenException('You do not have access to this tenant');
+      }
+    }
+
     return t;
   }
 
@@ -261,19 +309,26 @@ export class TenantsService {
       where: { userId },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
-        unit: { include: { property: true } },
+        unit: { include: { property: { select: { id: true, name: true, location: true } } } },
         leases: { where: { isActive: true }, include: { rentCharges: { include: { payments: true } } } },
         maintenanceRequests: { orderBy: { createdAt: 'desc' }, include: { updates: true } },
       },
     });
   }
 
-  findInvites(propertyId?: string) {
+  async findInvites(userId: string, role: string, propertyId?: string) {
+    const propertyFilter = this.buildPropertyFilter(userId, role);
+
     return this.prisma.tenantInvite.findMany({
       where: {
         used: false,
         expiresAt: { gt: new Date() },
-        ...(propertyId ? { unit: { propertyId } } : {}),
+        unit: {
+          property: {
+            ...propertyFilter,
+            ...(propertyId ? { id: propertyId } : {}),
+          },
+        },
       },
       include: {
         unit: { include: { property: { select: { name: true } } } },

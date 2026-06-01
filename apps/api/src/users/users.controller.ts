@@ -1,6 +1,6 @@
 import { Controller, Get, Patch, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UsersService } from './users.service';
+import { UsersService, UpdateUserDto } from './users.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 
@@ -24,7 +24,7 @@ export class UsersController {
 
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
+  update(@Param('id') id: string, @Body() body: UpdateUserDto) {
     return this.usersService.update(id, body);
   }
 

@@ -17,25 +17,40 @@ export class PropertiesController {
     return this.service.create(userId, dto);
   }
 
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER, Role.PROPERTY_MANAGER)
   @Get()
   findAll(@CurrentUser('id') userId: string, @CurrentUser('role') role: string) {
     return this.service.findAll(userId, role);
   }
 
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER, Role.PROPERTY_MANAGER)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.service.findOne(id, userId, role);
   }
 
   @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER, Role.PROPERTY_MANAGER)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: Partial<CreatePropertyDto>) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreatePropertyDto>,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.service.update(id, dto, userId, role);
   }
 
   @Roles(Role.SUPER_ADMIN, Role.PROPERTY_OWNER)
   @Delete(':id')
-  archive(@Param('id') id: string) {
-    return this.service.archive(id);
+  archive(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.service.archive(id, userId, role);
   }
 }
