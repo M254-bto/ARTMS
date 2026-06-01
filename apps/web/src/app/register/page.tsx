@@ -86,7 +86,7 @@ function RegisterInner() {
   async function onOwnerSubmit(values: z.infer<typeof ownerSchema>) {
     try {
       setIsLoading(true);
-      const { data } = await api.post("/auth/register", { ...values, role: "PROPERTY_OWNER" });
+      const { data } = await api.post("/auth/register", values);
       secureStorage.setItem("accessToken", data.accessToken);
       secureStorage.setItem("refreshToken", data.refreshToken);
       setUser(data.user);
