@@ -36,7 +36,7 @@ export default function TenantsPage() {
     async function fetchTenants() {
       try {
         const { data } = await api.get("/tenants");
-        setTenants(data);
+        setTenants(data?.tenants || []);
       } catch (err) {
         console.error(err);
       } finally {
