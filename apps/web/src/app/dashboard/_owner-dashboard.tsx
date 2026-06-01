@@ -11,7 +11,6 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { AddTenantDialog } from "@/components/tenants/add-tenant-dialog";
 
 export default function OwnerDashboard() {
@@ -50,9 +49,6 @@ export default function OwnerDashboard() {
           <p className="text-white/50 mt-1">Welcome back, {user?.firstName}. Here&apos;s what&apos;s happening today.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(var(--primary),0.3)]">
-            Record Payment
-          </Button>
           <AddTenantDialog />
         </div>
       </div>
