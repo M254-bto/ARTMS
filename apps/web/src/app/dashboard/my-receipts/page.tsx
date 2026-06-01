@@ -97,7 +97,7 @@ export default function MyReceiptsPage() {
         <body onload="window.print();window.close()">
           <div class="header">
             <div class="row">
-              <span class="title">ARTMS RECEIPT</span>
+              <span class="title">KEYNEST RECEIPT</span>
               <span class="badge">PAID</span>
             </div>
             <div style="font-size:12px;color:#71717a;margin-top:6px">Generated on ${new Date().toLocaleDateString()}</div>
@@ -121,7 +121,7 @@ export default function MyReceiptsPage() {
           </div>
 
           <div class="footer">
-            <p>Thank you for choosing ARTMS Property Management System.</p>
+            <p>Thank you for choosing KeyNest Property Management System.</p>
             <p>This is a computer generated document and does not require a physical signature.</p>
           </div>
         </body>
@@ -210,7 +210,7 @@ export default function MyReceiptsPage() {
             <DialogHeader className="border-b border-white/5 pb-4">
               <div className="flex justify-between items-center">
                 <DialogTitle className="text-xl font-heading text-white flex items-center gap-2">
-                  <Building className="w-5 h-5 text-primary" /> ARTMS Receipt
+                  <Building className="w-5 h-5 text-primary" /> KeyNest Receipt
                 </DialogTitle>
                 <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
                   Confirmed

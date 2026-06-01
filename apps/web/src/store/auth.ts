@@ -24,6 +24,6 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       logout: () => set({ user: null, isAuthenticated: false }),
     }),
-    { name: 'artms-auth' }
+    { name: 'keynest-auth' }
   )
 );

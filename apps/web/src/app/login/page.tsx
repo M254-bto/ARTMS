@@ -69,7 +69,7 @@ export default function LoginPage() {
           <div className="p-2 bg-primary/20 rounded-lg ring-1 ring-primary/30">
             <Building2 className="w-6 h-6 text-primary" />
           </div>
-          <span className="font-heading font-bold text-2xl tracking-tight text-white">ARTMS.</span>
+          <span className="font-heading font-bold text-2xl tracking-tight text-white">KeyNest.</span>
         </div>
         
         <div className="relative z-10">
@@ -83,7 +83,7 @@ export default function LoginPage() {
         </div>
         
         <div className="relative z-10 text-sm text-white/30">
-          &copy; {new Date().getFullYear()} ARTMS Platform. All rights reserved.
+          &copy; {new Date().getFullYear()} KeyNest Platform. All rights reserved.
         </div>
       </div>
 

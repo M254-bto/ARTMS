@@ -89,7 +89,7 @@ function RegisterInner() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       setUser(data.user);
-      toast.success("Account created! Welcome to ARTMS.");
+      toast.success("Account created! Welcome to KeyNest.");
       router.push("/dashboard");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to create account");
@@ -183,7 +183,7 @@ function RegisterInner() {
             <div className="p-2 bg-primary/20 rounded-lg ring-1 ring-primary/30">
               <Building2 className="w-6 h-6 text-primary" />
             </div>
-            <span className="font-heading font-bold text-2xl tracking-tight text-white">ARTMS.</span>
+            <span className="font-heading font-bold text-2xl tracking-tight text-white">KeyNest.</span>
           </div>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
@@ -201,11 +201,11 @@ function RegisterInner() {
               <span className="text-primary">{invitePreview.firstName}.</span>
             </h1>
             <p className="text-lg text-white/50 max-w-md font-light leading-relaxed">
-              Your landlord has added you to the ARTMS platform. Set your password below to access your tenant dashboard.
+              Your landlord has added you to the KeyNest platform. Set your password below to access your tenant dashboard.
             </p>
           </div>
           <div className="relative z-10 text-sm text-white/30">
-            &copy; {new Date().getFullYear()} ARTMS Platform. All rights reserved.
+            &copy; {new Date().getFullYear()} KeyNest Platform. All rights reserved.
           </div>
         </div>
 
@@ -308,7 +308,7 @@ function RegisterInner() {
           <div className="p-2 bg-primary/20 rounded-lg ring-1 ring-primary/30">
             <Building2 className="w-6 h-6 text-primary" />
           </div>
-          <span className="font-heading font-bold text-2xl tracking-tight text-white">ARTMS.</span>
+          <span className="font-heading font-bold text-2xl tracking-tight text-white">KeyNest.</span>
         </div>
         <div className="relative z-10">
           <h1 className="font-heading text-5xl font-medium tracking-tight text-white mb-4 leading-[1.1]">
@@ -316,11 +316,11 @@ function RegisterInner() {
             <span className="text-white/60">Portfolio with Ease.</span>
           </h1>
           <p className="text-lg text-white/50 max-w-md font-light leading-relaxed">
-            Join thousands of property owners who use ARTMS to streamline operations, collect rent faster, and keep tenants happy.
+            Join thousands of property owners who use KeyNest to streamline operations, collect rent faster, and keep tenants happy.
           </p>
         </div>
         <div className="relative z-10 text-sm text-white/30">
-          &copy; {new Date().getFullYear()} ARTMS Platform. All rights reserved.
+          &copy; {new Date().getFullYear()} KeyNest Platform. All rights reserved.
         </div>
       </div>
 

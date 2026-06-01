@@ -10,8 +10,20 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // CORS
+  const frontendUrl = process.env.FRONTEND_URL;
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (
+        !origin || 
+        origin === 'http://localhost:3000' || 
+        origin === frontendUrl || 
+        /\.vercel\.app$/.test(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Fallback to accept other origins if needed, or customize as desired
+      }
+    },
     credentials: true,
   });
 

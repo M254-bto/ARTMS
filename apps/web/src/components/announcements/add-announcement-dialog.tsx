@@ -52,6 +52,13 @@ export function AddAnnouncementDialog({ propertiesList, onSuccess, defaultProper
     }
   }, [open, propertiesList, propertyId]);
 
+  // Sync local properties state with propertiesList prop when it loads asynchronously
+  useEffect(() => {
+    if (propertiesList && propertiesList.length > 0) {
+      setProperties(propertiesList);
+    }
+  }, [propertiesList]);
+
   // Handle default property ID change when list loads
   useEffect(() => {
     if (defaultPropertyId) {
@@ -59,7 +66,7 @@ export function AddAnnouncementDialog({ propertiesList, onSuccess, defaultProper
     } else if (properties.length > 0 && !propertyId) {
       setPropertyId(properties[0].id);
     }
-  }, [defaultPropertyId, properties]);
+  }, [defaultPropertyId, properties, propertyId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -14,6 +14,7 @@ import {
   LogOut,
   Home,
   MessageSquare,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 
@@ -41,7 +42,7 @@ const tenantRoutes = [
 // Roles that see the owner navigation
 const OWNER_ROLES = ["PROPERTY_OWNER", "PROPERTY_MANAGER", "SUPER_ADMIN", "CARETAKER"];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
 
@@ -51,11 +52,21 @@ export function Sidebar() {
   return (
     <div className="flex flex-col h-full bg-black/40 backdrop-blur-xl border-r border-white/5 w-64 pt-6">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 mb-10">
-        <div className="p-2 bg-primary/20 rounded-lg ring-1 ring-primary/30">
-          <Building2 className="w-5 h-5 text-primary" />
+      <div className="flex items-center justify-between px-6 mb-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/20 rounded-lg ring-1 ring-primary/30">
+            <Building2 className="w-5 h-5 text-primary" />
+          </div>
+          <span className="font-heading font-bold text-xl tracking-tight text-white">KeyNest.</span>
         </div>
-        <span className="font-heading font-bold text-xl tracking-tight text-white">ARTMS.</span>
+        {onNavigate && (
+          <button 
+            onClick={onNavigate}
+            className="p-1.5 rounded-md hover:bg-white/5 text-white/50 hover:text-white transition-colors lg:hidden"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Role badge */}
@@ -79,6 +90,7 @@ export function Sidebar() {
               <Link
                 key={route.href}
                 href={route.href}
+                onClick={onNavigate}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
                   active
                     ? "bg-primary/10 text-primary font-medium"

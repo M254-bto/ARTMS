@@ -14,7 +14,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "ARTMS | Apartment Rent & Tenant Management",
+  title: "KeyNest | Apartment Rent & Tenant Management",
   description: "Manage properties, collect rent, and communicate with tenants effortlessly.",
 };
 

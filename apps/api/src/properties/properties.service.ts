@@ -43,7 +43,7 @@ export class PropertiesService {
   async findOne(id: string) {
     const p = await this.prisma.property.findUnique({
       where: { id },
-      include: { owner: { select: { id: true, firstName: true, lastName: true, email: true } }, manager: { select: { id: true, firstName: true, lastName: true, email: true } }, units: { orderBy: { unitNumber: 'asc' } } },
+      include: { owner: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } }, manager: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } }, units: { orderBy: { unitNumber: 'asc' } } },
     });
     if (!p) throw new NotFoundException('Property not found');
     return p;

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Search, Filter, Mail, Phone, Copy, Check, ExternalLink } from "lucide-react";
+import { Users, Search, Mail, Phone, Copy, Check, ExternalLink, Calendar } from "lucide-react";
 import api from "@/lib/api";
 import { AddTenantDialog } from "@/components/tenants/add-tenant-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -28,6 +28,8 @@ export default function TenantsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingInvites, setIsLoadingInvites] = useState(true);
   const [search, setSearch] = useState("");
+  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [properties, setProperties] = useState<any[]>([]);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,20 +60,35 @@ export default function TenantsPage() {
     fetchInvites();
   }, []);
 
-  const filteredTenants = tenants.filter(t => 
-    t.user?.firstName.toLowerCase().includes(search.toLowerCase()) || 
-    t.user?.lastName.toLowerCase().includes(search.toLowerCase()) ||
-    t.unit?.unitNumber.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    async function fetchProperties() {
+      try {
+        const { data } = await api.get("/properties");
+        setProperties(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    fetchProperties();
+  }, []);
 
-  const filteredInvites = invites.filter(i => 
-    i.firstName.toLowerCase().includes(search.toLowerCase()) || 
-    i.lastName.toLowerCase().includes(search.toLowerCase()) ||
-    i.unit?.unitNumber.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTenants = tenants.filter(t => {
+    const matchesSearch = t.user?.firstName.toLowerCase().includes(search.toLowerCase()) || 
+                          t.user?.lastName.toLowerCase().includes(search.toLowerCase()) ||
+                          t.unit?.unitNumber.toLowerCase().includes(search.toLowerCase());
+    const matchesProperty = propertyFilter === "all" || t.unit?.propertyId === propertyFilter;
+    return matchesSearch && matchesProperty;
+  });
+
+  const filteredInvites = invites.filter(i => {
+    const matchesSearch = i.firstName.toLowerCase().includes(search.toLowerCase()) || 
+                          i.lastName.toLowerCase().includes(search.toLowerCase()) ||
+                          i.unit?.unitNumber.toLowerCase().includes(search.toLowerCase());
+    const matchesProperty = propertyFilter === "all" || i.unit?.propertyId === propertyFilter;
+    return matchesSearch && matchesProperty;
+  });
 
   const handleCopyLink = (inviteId: string, token: string) => {
-    // Generate registration link
     const appUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
     const link = `${appUrl}/register?token=${token}`;
     navigator.clipboard.writeText(link);
@@ -91,7 +108,7 @@ export default function TenantsPage() {
         <AddTenantDialog />
       </div>
 
-      <Tabs defaultValue="active" className="w-full">
+      <Tabs defaultValue="active" className="w-full flex flex-col">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
           <TabsList className="bg-white/5 border border-white/5">
             <TabsTrigger value="active" className="gap-2">
@@ -114,15 +131,27 @@ export default function TenantsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Search bar next to tabs */}
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-            <Input 
-              placeholder="Search..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-black/40 border-white/10 text-white text-sm h-9"
-            />
+          {/* Search bar and filter next to tabs */}
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <select
+              value={propertyFilter}
+              onChange={(e) => setPropertyFilter(e.target.value)}
+              className="bg-black/40 border-white/10 text-white text-sm h-9 px-3 rounded-md w-full sm:w-[160px] outline-none focus:border-primary/50"
+            >
+              <option value="all">All Properties</option>
+              {properties.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <div className="relative w-full sm:w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+              <Input 
+                placeholder="Search..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 bg-black/40 border-white/10 text-white text-sm h-9 w-full"
+              />
+            </div>
           </div>
         </div>
 
@@ -142,68 +171,125 @@ export default function TenantsPage() {
                 <p className="text-white/50 max-w-sm">No registered tenant records match your current search.</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-white/[0.02] border-b border-white/5">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-white/40 font-medium">Tenant Name</TableHead>
-                    <TableHead className="text-white/40 font-medium">Contact</TableHead>
-                    <TableHead className="text-white/40 font-medium">Property</TableHead>
-                    <TableHead className="text-white/40 font-medium">Unit</TableHead>
-                    <TableHead className="text-white/40 font-medium">Lease Status</TableHead>
-                    <TableHead className="text-right text-white/40 font-medium">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Desktop View Table */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader className="bg-white/[0.02] border-b border-white/5">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-white/40 font-medium">Tenant Name</TableHead>
+                        <TableHead className="text-white/40 font-medium">Contact</TableHead>
+                        <TableHead className="text-white/40 font-medium">Property</TableHead>
+                        <TableHead className="text-white/40 font-medium">Unit</TableHead>
+                        <TableHead className="text-white/40 font-medium">Lease Status</TableHead>
+                        <TableHead className="text-right text-white/40 font-medium">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTenants.map((tenant) => (
+                        <TableRow key={tenant.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
+                                {tenant.user?.firstName?.[0]}{tenant.user?.lastName?.[0]}
+                              </div>
+                              <span className="font-medium text-white">
+                                {tenant.user?.firstName} {tenant.user?.lastName}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-xs text-white/70">
+                                <Mail className="w-3 h-3 text-white/40" /> {tenant.user?.email}
+                              </div>
+                              {tenant.user?.phone && (
+                                <div className="flex items-center gap-1.5 text-xs text-white/70">
+                                  <Phone className="w-3 h-3 text-white/40" /> {tenant.user?.phone}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-white/70">{tenant.unit?.property?.name || 'Unassigned'}</TableCell>
+                          <TableCell>
+                            {tenant.unit ? (
+                               <Badge variant="outline" className="border-white/10 text-white bg-white/5">
+                                 Unit {tenant.unit.unitNumber}
+                               </Badge>
+                            ) : (
+                              <span className="text-white/30 text-xs">None</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {tenant.leases && tenant.leases.length > 0 ? (
+                              <Badge className="bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20 font-normal">Active</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-white/10 text-white/40 font-normal">No Active Lease</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Link href={`/dashboard/tenants/${tenant.id}`} className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium h-7 px-3 rounded-md text-primary hover:text-primary/80 hover:bg-primary/10 transition-colors">
+                              View Profile
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile View List */}
+                <div className="md:hidden divide-y divide-white/5">
                   {filteredTenants.map((tenant) => (
-                    <TableRow key={tenant.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
-                            {tenant.user?.firstName?.[0]}{tenant.user?.lastName?.[0]}
-                          </div>
-                          <span className="font-medium text-white">
+                    <div key={tenant.id} className="p-5 space-y-4 hover:bg-white/[0.01] transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
+                          {tenant.user?.firstName?.[0]}{tenant.user?.lastName?.[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white text-base">
                             {tenant.user?.firstName} {tenant.user?.lastName}
+                          </h4>
+                          <span className="text-xs text-white/40 block mt-0.5">
+                            {tenant.unit?.property?.name || 'Unassigned'} — Unit {tenant.unit?.unitNumber || 'N/A'}
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5 text-xs text-white/70">
-                            <Mail className="w-3 h-3 text-white/40" /> {tenant.user?.email}
-                          </div>
-                          {tenant.user?.phone && (
-                            <div className="flex items-center gap-1.5 text-xs text-white/70">
-                              <Phone className="w-3 h-3 text-white/40" /> {tenant.user?.phone}
-                            </div>
-                          )}
+                      </div>
+
+                      <div className="space-y-2 bg-white/[0.01] border border-white/5 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-xs text-white/70">
+                          <Mail className="w-3.5 h-3.5 text-white/30" />
+                          <span className="truncate">{tenant.user?.email}</span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-white/70">{tenant.unit?.property?.name || 'Unassigned'}</TableCell>
-                      <TableCell>
-                        {tenant.unit ? (
-                           <Badge variant="outline" className="border-white/10 text-white bg-white/5">
-                             Unit {tenant.unit.unitNumber}
-                           </Badge>
-                        ) : (
-                          <span className="text-white/30 text-xs">None</span>
+                        {tenant.user?.phone && (
+                          <div className="flex items-center gap-2 text-xs text-white/70">
+                            <Phone className="w-3.5 h-3.5 text-white/30" />
+                            <span>{tenant.user?.phone}</span>
+                          </div>
                         )}
-                      </TableCell>
-                      <TableCell>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 pt-1">
                         {tenant.leases && tenant.leases.length > 0 ? (
-                          <Badge className="bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20 font-normal">Active</Badge>
+                          <Badge className="bg-green-500/10 text-green-400 border-green-500/20 font-normal text-[10px]">
+                            Active Lease
+                          </Badge>
                         ) : (
-                          <Badge variant="outline" className="border-white/10 text-white/40 font-normal">No Active Lease</Badge>
+                          <Badge variant="outline" className="border-white/10 text-white/40 font-normal text-[10px]">
+                            No Lease
+                          </Badge>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link href={`/dashboard/tenants/${tenant.id}`} className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium h-7 px-3 rounded-md text-primary hover:text-primary/80 hover:bg-primary/10 transition-colors">
-                          View Profile
+                        <Link 
+                          href={`/dashboard/tenants/${tenant.id}`}
+                          className="inline-flex items-center justify-center whitespace-nowrap text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 h-8 px-3 rounded-md transition-colors"
+                        >
+                          View Profile <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
                         </Link>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>
@@ -224,89 +310,157 @@ export default function TenantsPage() {
                 <p className="text-white/50 max-w-sm">No registration invites are currently pending for any units.</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-white/[0.02] border-b border-white/5">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-white/40 font-medium">Invited Tenant</TableHead>
-                    <TableHead className="text-white/40 font-medium">Contact Details</TableHead>
-                    <TableHead className="text-white/40 font-medium">Property</TableHead>
-                    <TableHead className="text-white/40 font-medium">Unit Assigned</TableHead>
-                    <TableHead className="text-white/40 font-medium">Invited Date</TableHead>
-                    <TableHead className="text-white/40 font-medium">Link Status</TableHead>
-                    <TableHead className="text-right text-white/40 font-medium">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Desktop View Table */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader className="bg-white/[0.02] border-b border-white/5">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-white/40 font-medium">Invited Tenant</TableHead>
+                        <TableHead className="text-white/40 font-medium">Contact Details</TableHead>
+                        <TableHead className="text-white/40 font-medium">Property</TableHead>
+                        <TableHead className="text-white/40 font-medium">Unit Assigned</TableHead>
+                        <TableHead className="text-white/40 font-medium">Invited Date</TableHead>
+                        <TableHead className="text-white/40 font-medium">Link Status</TableHead>
+                        <TableHead className="text-right text-white/40 font-medium">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvites.map((invite) => (
+                        <TableRow key={invite.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold text-xs">
+                                {invite.firstName?.[0]}{invite.lastName?.[0]}
+                              </div>
+                              <span className="font-medium text-white">
+                                {invite.firstName} {invite.lastName}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-xs text-white/70">
+                                <Mail className="w-3 h-3 text-white/40" /> {invite.email}
+                              </div>
+                              {invite.phone && (
+                                <div className="flex items-center gap-1.5 text-xs text-white/70">
+                                  <Phone className="w-3 h-3 text-white/40" /> {invite.phone}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-white/70">{invite.unit?.property?.name || 'Unassigned'}</TableCell>
+                          <TableCell>
+                            {invite.unit ? (
+                               <Badge variant="outline" className="border-white/10 text-white bg-white/5">
+                                 Unit {invite.unit.unitNumber}
+                               </Badge>
+                            ) : (
+                              <span className="text-white/30 text-xs">None</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-white/60 text-xs">
+                            {new Date(invite.createdAt).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20 font-normal">Pending Setup</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCopyLink(invite.id, invite.token)}
+                                className="border-white/10 hover:bg-white/5 text-white gap-1.5 text-xs h-8"
+                              >
+                                {copiedInviteId === invite.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-green-400" />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    Copy Link
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile View List */}
+                <div className="md:hidden divide-y divide-white/5">
                   {filteredInvites.map((invite) => (
-                    <TableRow key={invite.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold text-xs">
-                            {invite.firstName?.[0]}{invite.lastName?.[0]}
-                          </div>
-                          <span className="font-medium text-white">
+                    <div key={invite.id} className="p-5 space-y-4 hover:bg-white/[0.01] transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold text-sm">
+                          {invite.firstName?.[0]}{invite.lastName?.[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white text-base">
                             {invite.firstName} {invite.lastName}
+                          </h4>
+                          <span className="text-xs text-white/40 block mt-0.5">
+                            {invite.unit?.property?.name || 'Unassigned'} — Unit {invite.unit?.unitNumber || 'N/A'}
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5 text-xs text-white/70">
-                            <Mail className="w-3 h-3 text-white/40" /> {invite.email}
+                      </div>
+
+                      <div className="space-y-2 bg-white/[0.01] border border-white/5 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-xs text-white/70">
+                          <Mail className="w-3.5 h-3.5 text-white/30" />
+                          <span className="truncate">{invite.email}</span>
+                        </div>
+                        {invite.phone && (
+                          <div className="flex items-center gap-2 text-xs text-white/70">
+                            <Phone className="w-3.5 h-3.5 text-white/30" />
+                            <span>{invite.phone}</span>
                           </div>
-                          {invite.phone && (
-                            <div className="flex items-center gap-1.5 text-xs text-white/70">
-                              <Phone className="w-3 h-3 text-white/40" /> {invite.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-white/70">{invite.unit?.property?.name || 'Unassigned'}</TableCell>
-                      <TableCell>
-                        {invite.unit ? (
-                           <Badge variant="outline" className="border-white/10 text-white bg-white/5">
-                             Unit {invite.unit.unitNumber}
-                           </Badge>
-                        ) : (
-                          <span className="text-white/30 text-xs">None</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-white/60 text-xs">
-                        {new Date(invite.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20 font-normal">Pending Setup</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCopyLink(invite.id, invite.token)}
-                            className="border-white/10 hover:bg-white/5 text-white gap-1.5 text-xs h-8"
-                          >
-                            {copiedInviteId === invite.id ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-green-400" />
-                                Copied
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                Copy Link
-                              </>
-                            )}
-                          </Button>
+                        <div className="flex items-center gap-2 text-xs text-white/50 pt-1 border-t border-white/5">
+                          <Calendar className="w-3.5 h-3.5 text-white/30" />
+                          <span>Invited on {new Date(invite.createdAt).toLocaleDateString()}</span>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 pt-1">
+                        <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20 font-normal text-[10px]">
+                          Pending Setup
+                        </Badge>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCopyLink(invite.id, invite.token)}
+                          className="border-white/10 hover:bg-white/5 text-white gap-1.5 text-xs h-8 px-3"
+                        >
+                          {copiedInviteId === invite.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-green-400" />
+                              Copied Link
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              Copy Link
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>
