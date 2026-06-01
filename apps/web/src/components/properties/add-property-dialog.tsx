@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Plus, Loader2, Building2, MapPin, AlignLeft,
+  Plus, Minus, Loader2, Building2, MapPin, AlignLeft,
   Check, ChevronLeft, ChevronRight, Layers, DoorOpen,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -349,18 +349,48 @@ export function AddPropertyDialog({ onSuccess }: AddPropertyDialogProps) {
                     </div>
 
                     {/* Inputs */}
-                    <div className="grid grid-cols-3 gap-3 p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-4">
                       {/* Count */}
                       <div className="space-y-1.5">
                         <label className="text-xs text-white/40 uppercase tracking-wider">Number of Units</label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={999}
-                          value={cfg.count}
-                          onChange={(e) => updateConfig(type.key, "count", Math.max(1, parseInt(e.target.value) || 1))}
-                          className="bg-black/50 border-white/10 text-white h-9 text-sm focus:border-primary/50"
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-lg"
+                            className="bg-black/50 border-white/10 hover:bg-white/10 text-white shrink-0"
+                            onClick={() => updateConfig(type.key, "count", Math.max(1, cfg.count - 1))}
+                            disabled={cfg.count <= 1}
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={999}
+                            value={cfg.count || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "") {
+                                updateConfig(type.key, "count", 0);
+                              } else {
+                                const parsed = parseInt(val);
+                                updateConfig(type.key, "count", isNaN(parsed) ? 0 : Math.min(999, Math.max(0, parsed)));
+                              }
+                            }}
+                            className="bg-black/50 border-white/10 text-white h-9 text-sm focus:border-primary/50 text-center flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-lg"
+                            className="bg-black/50 border-white/10 hover:bg-white/10 text-white shrink-0"
+                            onClick={() => updateConfig(type.key, "count", Math.min(999, cfg.count + 1))}
+                            disabled={cfg.count >= 999}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Monthly Rent */}
