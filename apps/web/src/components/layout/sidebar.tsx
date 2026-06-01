@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
+import { secureStorage } from "@/lib/secureStorage";
+
 
 // ─── Route definitions per role ───────────────────────────────────────────────
 const ownerRoutes = [
@@ -121,7 +123,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
           <button
             onClick={() => {
-              localStorage.clear();
+              secureStorage.clear();
               logout();
               window.location.href = "/login";
             }}

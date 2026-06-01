@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { secureStorage } from '@/lib/secureStorage';
 
 type User = {
   id: string;
@@ -24,6 +25,10 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       logout: () => set({ user: null, isAuthenticated: false }),
     }),
-    { name: 'keynest-auth' }
+    {
+      name: 'keynest-auth',
+      storage: createJSONStorage(() => secureStorage),
+    }
   )
 );
+

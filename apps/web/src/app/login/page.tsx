@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Building2, KeyRound } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { secureStorage } from "@/lib/secureStorage";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,8 +47,8 @@ export default function LoginPage() {
       setIsLoading(true);
       const { data } = await api.post("/auth/login", values);
       
-      localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
+      secureStorage.setItem("accessToken", data.accessToken);
+      secureStorage.setItem("refreshToken", data.refreshToken);
       setUser(data.user);
       
       toast.success("Welcome back!");
@@ -58,6 +59,7 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   }
+
 
   return (
     <div className="flex min-h-screen">

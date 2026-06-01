@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Building2, UserPlus, KeyRound, Loader2, CheckCircle2, Home } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { secureStorage } from "@/lib/secureStorage";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,8 +87,8 @@ function RegisterInner() {
     try {
       setIsLoading(true);
       const { data } = await api.post("/auth/register", { ...values, role: "PROPERTY_OWNER" });
-      localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
+      secureStorage.setItem("accessToken", data.accessToken);
+      secureStorage.setItem("refreshToken", data.refreshToken);
       setUser(data.user);
       toast.success("Account created! Welcome to KeyNest.");
       router.push("/dashboard");
@@ -97,6 +98,7 @@ function RegisterInner() {
       setIsLoading(false);
     }
   }
+
 
   // ─── Tenant invite form ─────────────────────────────────────────────────────
   const tenantForm = useForm<z.infer<typeof tenantSchema>>({
