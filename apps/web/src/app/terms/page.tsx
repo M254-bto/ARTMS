@@ -45,7 +45,7 @@ export default function TermsPage() {
           </h1>
           <p className="text-white/50 text-lg">
             <strong className="text-white/70">Effective Date:</strong> 1st June
-            2025
+            2026
           </p>
         </div>
 
